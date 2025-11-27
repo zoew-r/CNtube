@@ -1,6 +1,7 @@
 """
 Transcriber module - Speech to text using Whisper model
 """
+from typing import Optional, List, Dict
 import whisper
 
 
@@ -22,7 +23,7 @@ class Transcriber:
         if self.model is None:
             self.model = whisper.load_model(self.model_size)
     
-    def transcribe(self, audio_path: str) -> str | None:
+    def transcribe(self, audio_path: str) -> Optional[str]:
         """
         Transcribe audio to Traditional Chinese text.
         
@@ -92,7 +93,7 @@ class Transcriber:
         
         return result
     
-    def get_segments(self, audio_path: str) -> list | None:
+    def get_segments(self, audio_path: str) -> Optional[List[Dict]]:
         """
         Get transcription with timestamps.
         

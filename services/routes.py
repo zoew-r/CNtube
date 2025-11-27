@@ -67,7 +67,8 @@ def process_video():
         })
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Error processing video: {e}")
+        return jsonify({'error': 'An error occurred while processing the video'}), 500
 
 
 @main_bp.route('/health')

@@ -1,6 +1,7 @@
 """
 Language Analyzer module - Extract vocabulary and grammar points using LLM
 """
+import json
 import os
 from openai import OpenAI
 
@@ -95,7 +96,6 @@ class LanguageAnalyzer:
             if content.endswith('```'):
                 content = content.rsplit('```', 1)[0]
             
-            import json
             return json.loads(content)
         except Exception as e:
             print(f"Error extracting vocabulary: {e}")
@@ -154,7 +154,6 @@ class LanguageAnalyzer:
             if content.endswith('```'):
                 content = content.rsplit('```', 1)[0]
             
-            import json
             return json.loads(content)
         except Exception as e:
             print(f"Error extracting grammar points: {e}")
