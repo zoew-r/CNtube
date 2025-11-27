@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNtube - 透過影片學習中文</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            padding: 40px 0;
+            color: white;
+        }
+
+        header h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .main-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 40px;
+            margin-bottom: 30px;
+        }
+
+        .input-section {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .input-section input {
+            flex: 1;
+            padding: 15px 20px;
+            font-size: 1.1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            transition: border-color 0.3s;
+        }
+
+        .input-section input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .input-section button {
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .input-section button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .input-section button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .transcription-box {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            line-height: 2;
+            font-size: 1.2rem;
+            color: #333;
+        }
+
+        .vocabulary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .vocab-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ed 100%);
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .vocab-word {
+            font-size: 1.8rem;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .vocab-pinyin {
+            color: #667eea;
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+        }
+
+        .vocab-english {
+            color: #555;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .vocab-pos {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+
+        .vocab-example {
+            color: #666;
+            font-style: italic;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+        }
+
+        .grammar-list {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .grammar-card {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 25px;
+            transition: box-shadow 0.3s;
+        }
+
+        .grammar-card:hover {
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .grammar-name {
+            font-size: 1.4rem;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .grammar-structure {
+            background: #667eea;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 1rem;
+            margin-bottom: 15px;
+            display: inline-block;
+        }
+
+        .grammar-explanation {
+            color: #555;
+            line-height: 1.7;
+            margin-bottom: 15px;
+        }
+
+        .grammar-examples {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .grammar-examples h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .grammar-examples ul {
+            list-style-type: none;
+        }
+
+        .grammar-examples li {
+            padding: 5px 0;
+            color: #333;
+        }
+
+        .grammar-examples li::before {
+            content: "📝 ";
+        }
+
+        .error-message {
+            display: none;
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .error-message.active {
+            display: block;
+        }
+
+        .note-box {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        footer {
+            text-align: center;
+            color: white;
+            padding: 20px;
+            opacity: 0.8;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2rem;
+            }
+
+            .input-section {
+                flex-direction: column;
+            }
+
+            .main-card {
+                padding: 20px;
+            }
+
+            .vocabulary-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎬 CNtube</h1>
+            <p>透過影片學習繁體中文 | Learn Traditional Chinese through Video</p>
+        </header>
+
+        <div class="main-card">
+            <div class="input-section">
+                <input type="text" id="videoUrl" placeholder="貼上影片網址 (例如: YouTube 連結)" />
+                <button id="processBtn" onclick="processVideo()">開始學習</button>
+            </div>
+
+            <div class="error-message" id="errorMsg"></div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>正在處理影片...</p>
+                <p style="color: #666; font-size: 0.9rem; margin-top: 10px;">
+                    提取音訊 → 語音轉文字 → 分析詞彙與文法
+                </p>
+            </div>
+
+            <div class="results" id="results">
+                <h2 class="section-title">📝 逐字稿 Transcription</h2>
+                <div class="transcription-box" id="transcription"></div>
+
+                <h2 class="section-title">📚 詞彙 Vocabulary</h2>
+                <div class="vocabulary-grid" id="vocabulary"></div>
+
+                <h2 class="section-title">📖 文法點 Grammar Points</h2>
+                <div class="grammar-list" id="grammar"></div>
+
+                <div class="note-box" id="noteBox" style="display: none;"></div>
+            </div>
+        </div>
+
+        <footer>
+            <p>CNtube - Learn Chinese through Video Transcription</p>
+        </footer>
+    </div>
+
+    <script>
+        async function processVideo() {
+            const videoUrl = document.getElementById('videoUrl').value.trim();
+            const processBtn = document.getElementById('processBtn');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const errorMsg = document.getElementById('errorMsg');
+
+            // Validate input
+            if (!videoUrl) {
+                showError('請輸入影片網址 Please enter a video URL');
+                return;
+            }
+
+            // Reset UI
+            errorMsg.classList.remove('active');
+            results.classList.remove('active');
+            loading.classList.add('active');
+            processBtn.disabled = true;
+
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ video_url: videoUrl }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Processing failed');
+                }
+
+                // Display results
+                displayResults(data);
+
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                loading.classList.remove('active');
+                processBtn.disabled = false;
+            }
+        }
+
+        function showError(message) {
+            const errorMsg = document.getElementById('errorMsg');
+            errorMsg.textContent = '❌ ' + message;
+            errorMsg.classList.add('active');
+        }
+
+        function displayResults(data) {
+            const results = document.getElementById('results');
+            const transcription = document.getElementById('transcription');
+            const vocabulary = document.getElementById('vocabulary');
+            const grammar = document.getElementById('grammar');
+            const noteBox = document.getElementById('noteBox');
+
+            // Display transcription
+            transcription.textContent = data.transcription;
+
+            // Display vocabulary
+            vocabulary.innerHTML = '';
+            if (data.analysis && data.analysis.vocabulary) {
+                data.analysis.vocabulary.forEach(vocab => {
+                    const card = document.createElement('div');
+                    card.className = 'vocab-card';
+                    card.innerHTML = `
+                        <div class="vocab-word">${vocab.word}</div>
+                        <div class="vocab-pinyin">${vocab.pinyin}</div>
+                        <div class="vocab-english">${vocab.english}</div>
+                        <span class="vocab-pos">${vocab.part_of_speech}</span>
+                        <div class="vocab-example">例：${vocab.example}</div>
+                    `;
+                    vocabulary.appendChild(card);
+                });
+            }
+
+            // Display grammar points
+            grammar.innerHTML = '';
+            if (data.analysis && data.analysis.grammar_points) {
+                data.analysis.grammar_points.forEach(point => {
+                    const card = document.createElement('div');
+                    card.className = 'grammar-card';
+                    
+                    let examplesHtml = '';
+                    if (point.additional_examples && point.additional_examples.length > 0) {
+                        examplesHtml = `
+                            <div class="grammar-examples">
+                                <h4>範例 Examples:</h4>
+                                <ul>
+                                    <li>${point.example_from_text}</li>
+                                    ${point.additional_examples.map(ex => `<li>${ex}</li>`).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    }
+
+                    card.innerHTML = `
+                        <div class="grammar-name">${point.name}</div>
+                        <div class="grammar-structure">${point.structure}</div>
+                        <div class="grammar-explanation">${point.explanation}</div>
+                        ${examplesHtml}
+                    `;
+                    grammar.appendChild(card);
+                });
+            }
+
+            // Display note if present
+            if (data.analysis && data.analysis.note) {
+                noteBox.textContent = '📌 ' + data.analysis.note;
+                noteBox.style.display = 'block';
+            } else {
+                noteBox.style.display = 'none';
+            }
+
+            results.classList.add('active');
+        }
+
+        // Allow Enter key to submit
+        document.getElementById('videoUrl').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                processVideo();
+            }
+        });
+    </script>
+</body>
+</html>
