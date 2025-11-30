@@ -1,0 +1,8 @@
+yt-dlp
+faster-whisper
+ollama
+openai
+python-dotenv
+flask
+flask-cors
+pypinyin
