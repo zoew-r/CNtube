@@ -93,10 +93,19 @@ def load_and_process_documents(file_path: Path) -> List[Document]:
 def build_vector_store(file_path: Path, embedding_model: str = "nomic-embed-text:v1.5", cache_dir: str = "faiss_index"):
     # Use relative path to avoid encoding issues with Chinese characters in absolute path on Windows/FAISS
     # We assume the script is run from the project root or we use the relative path from CWD
-    # Go up 1 level: services -> CNtube
     if cache_dir == "faiss_index":
-        # Use relative path string instead of absolute path to avoid encoding issues
-        cache_dir = os.path.join("..", "faiss_index")
+        # Check if index exists in current dir (e.g. running from CNtube)
+        if os.path.exists("faiss_index"):
+            cache_dir = "faiss_index"
+        # Check if index exists in parent dir (e.g. running from services)
+        elif os.path.exists(os.path.join("..", "faiss_index")):
+            cache_dir = os.path.join("..", "faiss_index")
+        else:
+            # Default for creation: if running from services, put it in parent
+            if os.path.basename(os.getcwd()) == "services":
+                cache_dir = os.path.join("..", "faiss_index")
+            else:
+                cache_dir = "faiss_index"
     index_path_str = cache_dir
     
     embeddings = create_ollama_embeddings(embedding_model)
