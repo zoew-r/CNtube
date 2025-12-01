@@ -1,8 +1,8 @@
 from flask import Flask, request, jsonify, render_template, Response, stream_with_context
 from flask_cors import CORS
-from services.video_processor import extract_audio_from_url
-from services.transcriber import transcribe_audio
-from services.language_analyzer import analyze_sentence, analyze_text_batch
+from video_processor import extract_audio_from_url
+from transcriber import transcribe_audio
+from language_analyzer import analyze_text_batch
 import traceback
 import json
 
@@ -48,8 +48,9 @@ def process_task():
                 return jsonify({"error": "Missing 'text' parameter"}), 400
             
             # 3. Analyze (Streaming with Progress)
+            user_level = int(data.get("user_level", 1))
             def generate_analysis():
-                generator = analyze_text_batch(text)
+                generator = analyze_text_batch(text, user_level)
                 for partial in generator:
                     yield json.dumps(partial) + "\n"
 

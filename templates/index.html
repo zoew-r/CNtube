@@ -242,15 +242,23 @@
             </div>
         </div>
 
-        <!-- Bottom Row: Analysis -->
-        <div class="panel" style="flex: 1; min-height: 400px;">
-            <h3>語意分析</h3>
-            <p style="font-size: 0.9rem; color: #94a3b8;">複製上方逐字稿內容，貼在下方進行分析 (支援多行同時分析)。</p>
-
-            <div class="input-group">
-                <textarea id="analysisInput" rows="2" placeholder="輸入要分析的句子或單詞..." style="resize: none;"></textarea>
-                <button id="analyzeBtn" style="height: fit-content; align-self: flex-end;">開始分析</button>
+        <!-- Analysis Panel -->
+        <div class="panel">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>文法分析</h3>
+                <div style="display: flex; gap: 10px;">
+                    <select id="levelSelect"
+                        style="padding: 8px; border-radius: 6px; background: #0f172a; color: white; border: 1px solid var(--border-color);">
+                        <option value="1">Level 1 (Beginner)</option>
+                        <option value="2">Level 2 (Elementary)</option>
+                        <option value="3">Level 3 (Intermediate)</option>
+                        <option value="4">Level 4 (Advanced)</option>
+                        <option value="5">Level 5 (Native)</option>
+                    </select>
+                    <button id="analyzeBtn">開始分析</button>
+                </div>
             </div>
+            <textarea id="analysisInput" rows="3" placeholder="輸入要分析的文字，或從逐字稿複製..."></textarea>
 
             <!-- Analysis Progress -->
             <div id="analysisProgressContainer" class="progress-container">
@@ -260,6 +268,7 @@
 
             <div id="analysisBox" class="scroll-area analysis-result" style="margin-top: 15px;"></div>
         </div>
+
     </div>
 
     <script>
@@ -433,6 +442,7 @@
         analyzeBtn.addEventListener('click', async () => {
             const text = analysisInput.value;
             if (!text) return alert('請輸入要分析的文字');
+            const level = document.getElementById('levelSelect').value;
 
             analyzeBtn.disabled = true;
             analysisBox.innerHTML = ''; // Clear previous results
@@ -447,7 +457,7 @@
                 const response = await fetch('/process', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ task: 'analyze', text: text })
+                    body: JSON.stringify({ task: 'analyze', text: text, user_level: level })
                 });
 
                 const reader = response.body.getReader();
@@ -473,43 +483,64 @@
 
                             // Render Analysis Result
                             if (data.analysis) {
-                                // Check if it's a string (raw error) or object
-                                let result = data.analysis;
-                                if (typeof result === 'string') {
-                                    try { result = JSON.parse(result); } catch (e) { }
+                                // Check if it's the new RAG format
+                                if (data.analysis.grammar_analysis) {
+                                    const card = document.createElement('div');
+                                    card.style.marginBottom = '30px';
+                                    card.style.borderBottom = '1px solid var(--border-color)';
+                                    card.style.paddingBottom = '20px';
+
+                                    if (data.original_text) {
+                                        card.innerHTML += `<h3 style="color: #fbbf24; margin-bottom: 15px;">「${data.original_text}」</h3>`;
+                                    }
+
+                                    // Render RAG markdown-like text (simple replacement for newlines)
+                                    const formattedAnalysis = data.analysis.grammar_analysis.replace(/\n/g, '<br>');
+                                    card.innerHTML += `<div style="line-height: 1.6;">${formattedAnalysis}</div>`;
+
+                                    analysisBox.appendChild(card);
+                                    analysisBox.scrollTop = analysisBox.scrollHeight;
                                 }
-
-                                if (typeof result === 'object' && result.meaning) {
-                                    // Append new result card
-                                    const card = document.createElement('div');
-                                    card.style.marginBottom = '30px';
-                                    card.style.borderBottom = '1px solid var(--border-color)';
-                                    card.style.paddingBottom = '20px';
-
-                                    // Add original text header
-                                    if (data.original_text) {
-                                        card.innerHTML += `<h3 style="color: #fbbf24; margin-bottom: 15px;">「${data.original_text}」</h3>`;
+                                // Fallback for old format (if any) or error
+                                else {
+                                    // Check if it's a string (raw error) or object
+                                    let result = data.analysis;
+                                    if (typeof result === 'string') {
+                                        try { result = JSON.parse(result); } catch (e) { }
                                     }
 
-                                    card.innerHTML += renderAnalysisHTML(result);
-                                    analysisBox.appendChild(card);
-                                    analysisBox.scrollTop = analysisBox.scrollHeight;
-                                } else if (result.raw_content || result.error) {
-                                    // Fallback for error/raw content
-                                    const card = document.createElement('div');
-                                    card.style.marginBottom = '30px';
-                                    card.style.borderBottom = '1px solid var(--border-color)';
-                                    card.style.paddingBottom = '20px';
+                                    if (typeof result === 'object' && result.meaning) {
+                                        // Append new result card
+                                        const card = document.createElement('div');
+                                        card.style.marginBottom = '30px';
+                                        card.style.borderBottom = '1px solid var(--border-color)';
+                                        card.style.paddingBottom = '20px';
 
-                                    if (data.original_text) {
-                                        card.innerHTML += `<h3 style="color: #fbbf24; margin-bottom: 15px;">「${data.original_text}」</h3>`;
+                                        // Add original text header
+                                        if (data.original_text) {
+                                            card.innerHTML += `<h3 style="color: #fbbf24; margin-bottom: 15px;">「${data.original_text}」</h3>`;
+                                        }
+
+                                        card.innerHTML += renderAnalysisHTML(result);
+                                        analysisBox.appendChild(card);
+                                        analysisBox.scrollTop = analysisBox.scrollHeight;
+                                    } else if (result.raw_content || result.error) {
+                                        // Fallback for error/raw content
+                                        const card = document.createElement('div');
+                                        card.style.marginBottom = '30px';
+                                        card.style.borderBottom = '1px solid var(--border-color)';
+                                        card.style.paddingBottom = '20px';
+
+                                        if (data.original_text) {
+                                            card.innerHTML += `<h3 style="color: #fbbf24; margin-bottom: 15px;">「${data.original_text}」</h3>`;
+                                        }
+
+                                        card.innerHTML += `<div style="color: #ef4444; margin-bottom: 10px;">分析格式錯誤 (JSON Error)</div>`;
+                                        card.innerHTML += `<pre style="white-space: pre-wrap; color: #94a3b8; font-size: 0.9rem;">${result.raw_content || JSON.stringify(result, null, 2)}</pre>`;
+
+                                        analysisBox.appendChild(card);
+                                        analysisBox.scrollTop = analysisBox.scrollHeight;
                                     }
-
-                                    card.innerHTML += `<div style="color: #ef4444; margin-bottom: 10px;">分析格式錯誤 (JSON Error)</div>`;
-                                    card.innerHTML += `<pre style="white-space: pre-wrap; color: #94a3b8; font-size: 0.9rem;">${result.raw_content || JSON.stringify(result, null, 2)}</pre>`;
-
-                                    analysisBox.appendChild(card);
-                                    analysisBox.scrollTop = analysisBox.scrollHeight;
                                 }
                             }
                         } catch (e) {

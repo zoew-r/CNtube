@@ -119,9 +119,12 @@ def analyze_all(asr_data: dict) -> list:
             })
     return results
 
-def analyze_text_batch(text: str):
+# Import from the same package
+from grammar_rag_analysis import analyze_grammar_point
+
+def analyze_text_batch(text: str, user_level: int = 1):
     """
-    Splits text into lines and analyzes them one by one, yielding progress.
+    Splits text into lines and analyzes them one by one using RAG grammar analysis, yielding progress.
     """
     # Split by newlines and filter empty lines
     lines = [line.strip() for line in text.split('\n') if line.strip()]
@@ -132,7 +135,15 @@ def analyze_text_batch(text: str):
         return
 
     for i, line in enumerate(lines):
-        analysis = analyze_sentence(line)
+        # Use RAG analysis
+        try:
+            rag_result = analyze_grammar_point(line, user_level)
+            # Wrap in dict to match expected format
+            analysis = {"grammar_analysis": rag_result}
+        except Exception as e:
+            print(f"Error in RAG analysis: {e}")
+            analysis = {"grammar_analysis": f"Error analyzing line: {e}"}
+
         progress = int(((i + 1) / total_lines) * 100)
         
         yield {
