@@ -227,22 +227,3 @@ def analyze_grammar_point(transcription: str, user_level: int, grammar_file_path
     log.info("Executing analysis chain...")
     result = chain.invoke({"input": transcription, "level": user_level})
     return result
-
-# ----------------------------------------------------------------------
-# Main Execution Block 
-# ----------------------------------------------------------------------
-if __name__ == "__main__":
-    # Test parameters
-    test_transcription = "我昨天買了很多書，但是今天不想看。"
-    test_level = 2 # Expecting matches like "V了", "但是" which are likely Level 2
-    
-    print(f"--- Starting Test Run ---")
-    print(f"Transcription: {test_transcription}")
-    print(f"Target Level: {test_level}")
-    
-    try:
-        analysis_result = analyze_grammar_point(test_transcription, test_level)
-        print("\n--- Analysis Result ---")
-        print(analysis_result)
-    except Exception as e:
-        log.error(f"Test run failed: {e}")
