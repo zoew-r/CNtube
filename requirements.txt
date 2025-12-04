@@ -1,0 +1,13 @@
+yt-dlp
+faster-whisper
+ollama
+openai
+python-dotenv
+flask
+flask-cors
+pypinyin
+langchain
+langchain-community
+langchain-core
+langchain-text-splitters
+faiss-cpu
