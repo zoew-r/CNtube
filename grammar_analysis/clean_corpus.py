@@ -1,9 +1,6 @@
 import os
 import re
 
-file_path = r'c:\Users\veron\OneDrive\桌面\大三\計算機語言學\Project\grammar_corpus.txt'
-output_path = r'c:\Users\veron\OneDrive\桌面\大三\計算機語言學\Project\grammar_corpus_cleaned.txt'
-
 def is_grammar_point_start(lines, index):
     line = lines[index].strip()
     # Check if line is just a number

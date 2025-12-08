@@ -27,7 +27,15 @@ else
     echo "⚠️  Warning: requirements.txt not found."
 fi
 
-# 5. Run the Application
+# 5. Check and Pull Ollama Model
+if command -v ollama &> /dev/null; then
+    echo "🦙 Checking Ollama model (qwen2.5:7b)..."
+    ollama pull qwen2.5:7b
+else
+    echo "⚠️  Warning: Ollama not found. Please install Ollama to use AI features."
+fi
+
+# 6. Run the Application
 echo "✅ Setup complete. Launching server..."
 echo "🌐 Please open http://localhost:5001 in your browser."
 python -m services.app
