@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import logging
 from pathlib import Path
 from typing import List, Dict, Any
@@ -13,10 +14,16 @@ from langchain_community.chat_models import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableParallel
 from langchain_core.output_parsers import StrOutputParser
+from pypinyin import pinyin, Style
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', encoding='utf-8')
 log = logging.getLogger(__name__)
+
+# ----------------------------------------------------------------------
+# Constants
+# ----------------------------------------------------------------------
+GRAMMAR_MODEL = os.getenv("GRAMMAR_MODEL", "qwen2.5:7b")
 
 # ----------------------------------------------------------------------
 # Function: Initialize Ollama Embeddings
@@ -142,86 +149,98 @@ def build_vector_store(file_path: Path, embedding_model: str = "nomic-embed-text
 # ----------------------------------------------------------------------
 # Function: Create LLM
 # ----------------------------------------------------------------------
-def create_llm(model_name: str = "qwen3:1.7b", base_url: str = "http://localhost:11434"):
+def create_llm(model_name: str = GRAMMAR_MODEL, base_url: str = "http://localhost:11434"):
+    log.info(f"Creating LLM with model: {model_name}")
+    # Higher temperature for JSON creativity? No, low for formatting.
     return ChatOllama(
         model=model_name,
         temperature=0.1,
+        format="json",  # Force JSON mode in Ollama
         base_url=base_url
     )
 
 # ----------------------------------------------------------------------
 # Main Analysis Function
 # ----------------------------------------------------------------------
-def analyze_grammar_point(transcription: str, user_level: int, grammar_file_path: Path = None):
+# ----------------------------------------------------------------------
+# Global Cache for Chain
+# ----------------------------------------------------------------------
+_CACHED_CHAIN = None
+
+def get_rag_chain(grammar_file_path: Path):
     """
-    Analyzes the transcription using grammar points from the specified user_level.
+    Creates or returns the cached RAG chain.
     """
-    # Define paths
-    if grammar_file_path is None:
-        # Go up 1 level: services -> CNtube
-        base_dir = Path(__file__).resolve().parent.parent
-        grammar_file = base_dir / "grammar_corpus_cleaned.txt"
-    else:
-        grammar_file = grammar_file_path
+    global _CACHED_CHAIN
     
-    # Build or Load Vector Store (In a real app, we might cache this)
-    # For this script, we build it every time or we could save/load. 
-    # Building it is fast enough for this size (~7000 lines).
-    vectorstore = build_vector_store(grammar_file)
+    if _CACHED_CHAIN is not None:
+        return _CACHED_CHAIN
+        
+    log.info("Initializing RAG Chain (Loading Models)...")
     
-    # Create Retriever with filter
-    # FAISS retriever supports 'filter' in search_kwargs if the underlying store supports it.
-    # LangChain's FAISS implementation handles metadata filtering.
+    # 1. Vector Store
+    vectorstore = build_vector_store(grammar_file_path)
     
-    # We need to construct a retriever that applies the filter dynamically.
-    # However, standard .as_retriever() with search_kwargs is static.
-    # We will use the vectorstore.similarity_search directly in a custom runnable or 
-    # use the 'filter' parameter in invoke if supported.
-    
-    # Actually, the best way in LangChain LCEL is to pass the filter in the config or use a lambda.
-    
+    # 2. LLM
     llm = create_llm()
     
+    # 3. Prompt (JSON focused)
     prompt_template = """
-    作為一位專業的中文語言學家，您的任務是根據提供的文法規則分析以下文章。
-    請確保您的分析只基於第 {level} 級出現的文法規則。
+    You are a professional Taiwanese Mandarin teacher.
+    Analyze the sentence based **STRICTLY AND ONLY** on the provided "Retrieved Grammar Rules" for Level {level}.
+    
+    **CRITICAL INSTRUCTION**: 
+    - You generally know Mandarin grammar, but for this task, you must **IGNORE** your general knowledge about grammar rules that are NOT listed below.
+    - If the "Retrieved Grammar Rules" section is EMPTY or does not contain a rule that matches the sentence, you MUST set "found": false and MUST provide an additional grammar rule.
+    - Do NOT invent rules (e.g., "comma usage", "subject-verb") if they are not in the retrieved text.
 
-    --- 檢索到的文法規則 (Level {level}) ---
+    --- Retrieved Grammar Rules (Level {level}) ---
     {context}
     -----------------------------------------------
 
-    請根據上述規則，詳細分析以下文章：
-    {input}
+    Target Sentence: "{input}"
+
+    **Explanation Requirements**:
+    - The "explanation" must be **detailed and educational**.
+    - **LANGUAGE CONSTRAINT**: The explanation MUST be in **ENGLISH**. Do NOT use Chinese in the explanation field (except when quoting the sentence).
+    - Explain **why** this grammar point is used here and how it functions in the sentence.
+    - If applicable, break down the structure (e.g., "Subject + 正在 + Verb").
+
+    Return purely a JSON object with this structure:
+    {{
+      "translation": "English translation of the sentence",
+      "matched_grammar": {{
+          "found": true OR false, 
+          "level": {level},
+          "point": "The Specific Grammar Points from the retrieved rules (in Traditional Chinese)",
+          "explanation": "Detailed grammar explanation in ENGLISH (MUST BE ENGLISH)"
+      }},
+      "additional_info": {{
+          "point": "Any other valid grammar points you see",
+          "explanation": "Detailed explanation in ENGLISH (MUST BE ENGLISH)"
+      }}
+    }}
     
-    如果文章中沒有使用到上述規則，請說明「未發現符合程度的文法點」。
-    如果有，請列出文法點並解釋。
+    Logic Guide:
+    1. Look at "Retrieved Grammar Rules".
+    2. Does the "Target Sentence" **demonstrate the usage** of any Rule/Pattern listed?
+       - YES (e.g., uses the same particle "的" or structure "正在..."): Set "found": true, fill "matched_grammar".
+       - NO: Set "found": false.
+    3. The sentence does NOT need to match the corpus examples exactly. It just needs to use the same grammar concept.
     """
     
     prompt = ChatPromptTemplate.from_template(prompt_template)
     
-    # Custom retrieval function to handle filtering
+    # 4. Retriever
     def retrieve_with_filter(inputs):
         query = inputs['input']
         level = inputs['level']
         
-        # Perform similarity search with filter
-        # Note: FAISS filter format depends on the underlying library, but LangChain wraps it.
-        # For LangChain FAISS, we can pass a callable or a dict.
-        # Simple dict filter: {'level': level}
-        
         log.info(f"Retrieving documents for query: '{query}' at level: {level}")
-        
-        # Fetch more docs to ensure coverage, then we can let LLM pick or just feed top k
-        docs = vectorstore.similarity_search(
-            query, 
-            k=5, 
-            filter={'level': level}
-        )
-        
-        # Format docs for prompt
+        docs = vectorstore.similarity_search(query, k=5, filter={'level': level})
         return "\n\n".join([d.page_content for d in docs])
 
-    # Build Chain
+    # 5. Chain
     chain = (
         RunnableParallel(
             context=retrieve_with_filter,
@@ -233,6 +252,87 @@ def analyze_grammar_point(transcription: str, user_level: int, grammar_file_path
         | StrOutputParser()
     )
     
+    _CACHED_CHAIN = chain
+    log.info("RAG Chain initialized and cached.")
+    return chain
+
+# ----------------------------------------------------------------------
+# Main Analysis Function
+# ----------------------------------------------------------------------
+def analyze_grammar_point(transcription: str, user_level: int, grammar_file_path: Path = None):
+    """
+    Analyzes the transcription using RAG, requesting JSON, then formats it nicely.
+    """
+    if grammar_file_path is None:
+        base_dir = Path(__file__).resolve().parent.parent
+        grammar_file = base_dir / "grammar_analysis" / "grammar_corpus_cleaned.txt"
+    else:
+        grammar_file = grammar_file_path
+    
+    chain = get_rag_chain(grammar_file)
+    
+    # 1. Generate Phonetics locally
+    try:
+        py_list = pinyin(transcription, style=Style.TONE)
+        pinyin_str = " ".join([x[0] for x in py_list])
+        
+        zy_list = pinyin(transcription, style=Style.BOPOMOFO)
+        zhuyin_str = " ".join([x[0] for x in zy_list])
+    except Exception as e:
+        log.error(f"Error generating phonetics: {e}")
+        pinyin_str = "Error"
+        zhuyin_str = "Error"
+
+    # 2. Get JSON from LLM
     log.info("Executing analysis chain...")
-    result = chain.invoke({"input": transcription, "level": user_level})
-    return result
+    raw_json_str = chain.invoke({"input": transcription, "level": user_level})
+    
+    # 3. Parse JSON
+    try:
+        # Clean up any potential markdown backticks
+        cleaned_json = raw_json_str.strip()
+        if cleaned_json.startswith("```json"):
+            cleaned_json = cleaned_json[7:]
+        if cleaned_json.endswith("```"):
+            cleaned_json = cleaned_json[:-3]
+        
+        data = json.loads(cleaned_json)
+    except json.JSONDecodeError as e:
+        log.error(f"Failed to parse LLM JSON: {e}. Content: {raw_json_str}")
+        return f"Error: Could not parse analysis results. Raw output:\n{raw_json_str}"
+
+    # 4. Construct Final Formatted String
+    translation = data.get("translation", "")
+    
+    matched = data.get("matched_grammar", {})
+    found = matched.get("found", False)
+    level = matched.get("level", user_level)
+    point = matched.get("point", "Unknown")
+    explanation = matched.get("explanation", "")
+    
+    additional = data.get("additional_info", {})
+    add_point = additional.get("point", "")
+    add_exp = additional.get("explanation", "")
+    
+    # Build Output
+    output = []
+    output.append("1. **Sentence**:")
+    output.append(f"   - English Translation: {translation}")
+    output.append(f"   - **Zhuyin (Bopomofo)**: {zhuyin_str}")
+    output.append(f"   - Hanyu Pinyin: {pinyin_str}")
+    
+    output.append("2. **Grammar Explanation**:")
+    if found:
+        output.append(f"   - Level: {level}")
+        output.append(f"   - Point: {point}")
+        output.append(f"   - Explanation: {explanation}")
+    else:
+        output.append(f"   - No matching grammar points found for Level {user_level}.")
+        
+    if add_point and add_point.lower() != "none":
+        output.append("3. **Additional Information**:")
+        output.append(f"   - Point: {add_point}")
+        if add_exp:
+            output.append(f"   - Explanation: {add_exp}")
+
+    return "\n".join(output)
