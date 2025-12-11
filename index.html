@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNtube - YouTube 中文語言學習</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f8fafc;
+            --accent-color: #3b82f6;
+            --accent-hover: #2563eb;
+            --border-color: #334155;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .top-row {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            /* Video wider than transcript */
+            gap: 20px;
+            /* Removed fixed height to allow video panel to grow naturally */
+        }
+
+        @media (max-width: 768px) {
+            .top-row {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+
+            .container {
+                height: auto;
+            }
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: var(--accent-color);
+        }
+
+        .panel {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: #0f172a;
+            color: white;
+            font-size: 1rem;
+        }
+
+        button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            background: var(--accent-color);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        button:hover {
+            background: var(--accent-hover);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%;
+            /* 16:9 */
+            height: 0;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            flex-shrink: 0;
+            /* Prevent shrinking */
+        }
+
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .scroll-area {
+            flex: 1;
+            overflow-y: auto;
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 600px;
+            /* Prevent it from growing too large */
+        }
+
+        .analysis-result {
+            white-space: pre-wrap;
+            line-height: 1.8;
+        }
+
+        .loading {
+            display: none;
+            color: var(--accent-color);
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        /* Progress Bar Styles */
+        .progress-container {
+            width: 100%;
+            background-color: var(--border-color);
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 0%;
+            height: 6px;
+            background-color: var(--accent-color);
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            text-align: right;
+            margin-top: 4px;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>CNtube 語言學習助手</h1>
+        </header>
+
+        <!-- Top Row: Video (Left) + Transcript (Right) -->
+        <div class="top-row">
+            <!-- Video Panel -->
+            <div class="panel">
+                <div class="input-group">
+                    <input type="text" id="urlInput" placeholder="貼上 YouTube 網址 (https://www.youtube.com/watch?v=...)">
+                    <button id="transcribeBtn">取得逐字稿</button>
+                </div>
+
+                <div class="video-container">
+                    <!-- Replace iframe with div for YouTube API -->
+                    <div id="videoPlayer"></div>
+                </div>
+
+                <!-- Subtitle Box -->
+                <div id="subtitleBox" style="
+                    margin-top: 15px; 
+                    padding: 15px; 
+                    background: #1e293b; 
+                    border-radius: 8px; 
+                    border: 1px solid var(--border-color); 
+                    text-align: center; 
+                    font-size: 1.2rem; 
+                    font-weight: bold; 
+                    color: #fbbf24; 
+                    min-height: 1.5em;
+                ">
+                    (字幕將顯示於此)
+                </div>
+            </div>
+
+            <!-- Transcript Panel -->
+            <div class="panel">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>逐字稿</h3>
+                    <span id="transcribeStatus" class="loading">正在轉錄中...</span>
+                </div>
+
+                <!-- Transcription Progress -->
+                <div id="transcribeProgressContainer" class="progress-container">
+                    <div id="transcribeProgressBar" class="progress-bar"></div>
+                </div>
+                <div id="transcribeProgressText" class="progress-text">0%</div>
+
+                <div id="transcriptBox" class="scroll-area" placeholder="逐字稿將顯示於此..."></div>
+            </div>
+        </div>
+
+        <!-- Analysis Panel -->
+        <div class="panel">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>文法分析</h3>
+                <div style="display: flex; gap: 10px;">
+                    <select id="levelSelect"
+                        style="padding: 8px; border-radius: 6px; background: #0f172a; color: white; border: 1px solid var(--border-color);">
+                        <option value="1">Level 1 (Beginner)</option>
+                        <option value="2">Level 2 (Elementary)</option>
+                        <option value="3">Level 3 (Intermediate)</option>
+                        <option value="4">Level 4 (Advanced)</option>
+                        <option value="5">Level 5 (Native)</option>
+                    </select>
+                    <button id="analyzeBtn">開始分析</button>
+                </div>
+            </div>
+            <textarea id="analysisInput" rows="3" placeholder="輸入要分析的文字，或從逐字稿複製..."></textarea>
+
+            <!-- Analysis Progress -->
+            <div id="analysisProgressContainer" class="progress-container">
+                <div id="analysisProgressBar" class="progress-bar"></div>
+            </div>
+            <div id="analysisProgressText" class="progress-text">0%</div>
+
+            <div id="analysisBox" class="scroll-area analysis-result" style="margin-top: 15px;"></div>
+        </div>
+
+        <!-- Vocabulary Panel -->
+        <div class="panel">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>重點單字 (Vocabulary)</h3>
+                <button id="vocabBtn" style="background: #10b981;">提取單字</button>
+            </div>
+
+            <!-- Vocab Progress -->
+            <div id="vocabProgressContainer" class="progress-container">
+                <div id="vocabProgressBar" class="progress-bar" style="background: #10b981;"></div>
+            </div>
+            <div id="vocabProgressText" class="progress-text">0%</div>
+
+            <div id="vocabBox" class="scroll-area"
+                style="margin-top: 15px; display: flex; flex-direction: column; gap: 20px;">
+                <div style="color: #94a3b8; text-align: center; padding: 20px;">
+                    點擊「提取單字」來分析逐字稿中的重要詞彙。
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const urlInput = document.getElementById('urlInput');
+        // videoPlayer is now handled by YT API
+        const transcribeBtn = document.getElementById('transcribeBtn');
+        const transcriptBox = document.getElementById('transcriptBox');
+        const transcribeStatus = document.getElementById('transcribeStatus');
+        const transcribeProgressContainer = document.getElementById('transcribeProgressContainer');
+        const transcribeProgressBar = document.getElementById('transcribeProgressBar');
+        const transcribeProgressText = document.getElementById('transcribeProgressText');
+        const subtitleBox = document.getElementById('subtitleBox');
+
+        const analysisInput = document.getElementById('analysisInput');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const analysisBox = document.getElementById('analysisBox');
+        const analysisProgressContainer = document.getElementById('analysisProgressContainer');
+        const analysisProgressBar = document.getElementById('analysisProgressBar');
+        const analysisProgressText = document.getElementById('analysisProgressText');
+
+        // YouTube IFrame API Setup
+        let player;
+        let segments = []; // Store segments for sync
+        let syncInterval;
+
+        // Load YouTube IFrame API
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('videoPlayer', {
+                height: '100%',
+                width: '100%',
+                videoId: '', // Initial empty
+                events: {
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+
+        function onPlayerStateChange(event) {
+            if (event.data == YT.PlayerState.PLAYING) {
+                startSync();
+            } else {
+                stopSync();
+            }
+        }
+
+        function startSync() {
+            stopSync();
+            syncInterval = setInterval(() => {
+                if (player && player.getCurrentTime) {
+                    const currentTime = player.getCurrentTime();
+                    updateSubtitle(currentTime);
+                }
+            }, 100); // Check every 100ms
+        }
+
+        function stopSync() {
+            if (syncInterval) clearInterval(syncInterval);
+        }
+
+        function updateSubtitle(time) {
+            // Find segment matching current time
+            const currentSegment = segments.find(seg => time >= seg.start && time <= seg.end);
+            if (currentSegment) {
+                subtitleBox.textContent = currentSegment.text;
+            } else {
+                // Optional: Clear subtitle if no match, or keep last one?
+                // subtitleBox.textContent = ""; 
+            }
+        }
+
+        // Real-time video embed
+        urlInput.addEventListener('input', (e) => {
+            const url = e.target.value;
+            if (url.includes('v=')) {
+                const videoId = url.split('v=')[1].split('&')[0];
+                if (player && player.loadVideoById) {
+                    player.loadVideoById(videoId);
+                }
+            }
+        });
+
+        // Transcribe with Streaming & Progress
+        transcribeBtn.addEventListener('click', async () => {
+            const url = urlInput.value;
+            if (!url) return alert('請輸入網址');
+
+            transcribeBtn.disabled = true;
+            transcribeStatus.style.display = 'block';
+            transcriptBox.textContent = '';
+            subtitleBox.textContent = "(等待播放...)";
+            segments = []; // Reset segments
+
+            // Show progress bar
+            transcribeProgressContainer.style.display = 'block';
+            transcribeProgressText.style.display = 'block';
+            transcribeProgressBar.style.width = '0%';
+            transcribeProgressText.textContent = '0%';
+
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task: 'transcribe', url: url })
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.error || 'Network response was not ok');
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const data = JSON.parse(line);
+                            if (data.error) {
+                                throw new Error(data.error);
+                            }
+                            if (data.transcript) {
+                                transcriptBox.textContent = data.transcript;
+                                transcriptBox.scrollTop = transcriptBox.scrollHeight;
+                            }
+                            if (data.progress !== undefined) {
+                                transcribeProgressBar.style.width = data.progress + '%';
+                                transcribeProgressText.textContent = data.progress + '%';
+                            }
+                            // Store segment for sync
+                            if (data.segment) {
+                                segments.push(data.segment);
+                            }
+                        } catch (e) {
+                            if (e.message.includes("JSON")) {
+                                console.error('Error parsing JSON chunk', e);
+                            } else {
+                                throw e; // Re-throw actual errors
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                transcriptBox.textContent = 'Error: ' + err.message;
+                // Keep progress bar visible but red if error
+                transcribeProgressBar.style.backgroundColor = '#ef4444';
+            } finally {
+                transcribeBtn.disabled = false;
+                transcribeStatus.style.display = 'none';
+                if (!transcriptBox.textContent.startsWith('Error')) {
+                    setTimeout(() => {
+                        transcribeProgressContainer.style.display = 'none';
+                        transcribeProgressText.style.display = 'none';
+                    }, 2000);
+                }
+            }
+        });
+
+        // Analyze with Streaming & Progress
+        analyzeBtn.addEventListener('click', async () => {
+            const text = analysisInput.value;
+            if (!text) return alert('請輸入要分析的文字');
+            const level = document.getElementById('levelSelect').value;
+
+            analyzeBtn.disabled = true;
+            analysisBox.innerHTML = ''; // Clear previous results
+
+            // Show progress bar
+            analysisProgressContainer.style.display = 'block';
+            analysisProgressText.style.display = 'block';
+            analysisProgressBar.style.width = '0%';
+            analysisProgressText.textContent = '0%';
+
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task: 'analyze', text: text, user_level: level })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const data = JSON.parse(line);
+
+                            // Update Progress
+                            if (data.progress !== undefined) {
+                                analysisProgressBar.style.width = data.progress + '%';
+                                analysisProgressText.textContent = data.progress + '%';
+                            }
+
+                            // Render Analysis Result
+                            if (data.analysis) {
+                                // Check if it's the new RAG format
+                                if (data.analysis.grammar_analysis) {
+                                    const card = document.createElement('div');
+                                    card.style.marginBottom = '30px';
+                                    card.style.borderBottom = '1px solid var(--border-color)';
+                                    card.style.paddingBottom = '20px';
+
+                                    if (data.original_text) {
+                                        card.innerHTML += `<h3 style="color: #fbbf24; margin-bottom: 15px;">「${data.original_text}」</h3>`;
+                                    }
+
+                                    // Render RAG markdown-like text (simple replacement for newlines)
+                                    const formattedAnalysis = data.analysis.grammar_analysis.replace(/\n/g, '<br>');
+                                    card.innerHTML += `<div style="line-height: 1.6;">${formattedAnalysis}</div>`;
+
+                                    analysisBox.appendChild(card);
+                                    analysisBox.scrollTop = analysisBox.scrollHeight;
+                                }
+                                // Fallback for old format (if any) or error
+                                else {
+                                    // Check if it's a string (raw error) or object
+                                    let result = data.analysis;
+                                    if (typeof result === 'string') {
+                                        try { result = JSON.parse(result); } catch (e) { }
+                                    }
+
+                                    if (typeof result === 'object' && result.meaning) {
+                                        // Append new result card
+                                        const card = document.createElement('div');
+                                        card.style.marginBottom = '30px';
+                                        card.style.borderBottom = '1px solid var(--border-color)';
+                                        card.style.paddingBottom = '20px';
+
+                                        // Add original text header
+                                        if (data.original_text) {
+                                            card.innerHTML += `<h3 style="color: #fbbf24; margin-bottom: 15px;">「${data.original_text}」</h3>`;
+                                        }
+
+                                        card.innerHTML += renderAnalysisHTML(result);
+                                        analysisBox.appendChild(card);
+                                        analysisBox.scrollTop = analysisBox.scrollHeight;
+                                    } else if (result.raw_content || result.error) {
+                                        // Fallback for error/raw content
+                                        const card = document.createElement('div');
+                                        card.style.marginBottom = '30px';
+                                        card.style.borderBottom = '1px solid var(--border-color)';
+                                        card.style.paddingBottom = '20px';
+
+                                        if (data.original_text) {
+                                            card.innerHTML += `<h3 style="color: #fbbf24; margin-bottom: 15px;">「${data.original_text}」</h3>`;
+                                        }
+
+                                        card.innerHTML += `<div style="color: #ef4444; margin-bottom: 10px;">分析格式錯誤 (JSON Error)</div>`;
+                                        card.innerHTML += `<pre style="white-space: pre-wrap; color: #94a3b8; font-size: 0.9rem;">${result.raw_content || JSON.stringify(result, null, 2)}</pre>`;
+
+                                        analysisBox.appendChild(card);
+                                        analysisBox.scrollTop = analysisBox.scrollHeight;
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            console.error('Error parsing JSON chunk', e);
+                        }
+                    }
+                }
+            } catch (err) {
+                analysisBox.textContent = 'Error: ' + err.message;
+            } finally {
+                analyzeBtn.disabled = false;
+                setTimeout(() => {
+                    analysisProgressContainer.style.display = 'none';
+                    analysisProgressText.style.display = 'none';
+                }, 2000);
+            }
+        });
+
+        function renderAnalysisHTML(data) {
+            return `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: var(--accent-color); margin-bottom: 5px;">含義 (Meaning)</h4>
+                    <p>${data.meaning}</p>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: var(--accent-color); margin-bottom: 5px;">邏輯 (Logic)</h4>
+                    <p>${data.logic}</p>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: var(--accent-color); margin-bottom: 10px;">單字 (Vocabulary)</h4>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-color); text-align: left;">
+                                <th style="padding: 8px;">單詞</th>
+                                <th style="padding: 8px;">拼音</th>
+                                <th style="padding: 8px;">注音</th>
+                                <th style="padding: 8px;">定義</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.vocabulary.map(v => `
+                                <tr style="border-bottom: 1px solid #334155;">
+                                    <td style="padding: 8px; color: #fbbf24; font-weight: bold;">${v.word}</td>
+                                    <td style="padding: 8px;">${v.pinyin}</td>
+                                    <td style="padding: 8px;">${v.zhuyin}</td>
+                                    <td style="padding: 8px; color: #94a3b8;">${v.definition}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: var(--accent-color); margin-bottom: 5px;">文法 (Grammar)</h4>
+                    <p>${data.grammar}</p>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: var(--accent-color); margin-bottom: 5px;">簡易解釋 (Easy Explanation)</h4>
+                    <p>${data.easy_explanation}</p>
+                </div>
+            `;
+        }
+
+        // Vocabulary Extraction Logic
+        const vocabBtn = document.getElementById('vocabBtn');
+        const vocabBox = document.getElementById('vocabBox');
+        const vocabProgressContainer = document.getElementById('vocabProgressContainer');
+        const vocabProgressBar = document.getElementById('vocabProgressBar');
+        const vocabProgressText = document.getElementById('vocabProgressText');
+
+        vocabBtn.addEventListener('click', async () => {
+            // Get text from transcript box
+            const text = transcriptBox.textContent;
+            if (!text || text.trim() === "" || text.includes("逐字稿將顯示於此")) {
+                return alert('請先取得逐字稿 (Please transcribe video first)');
+            }
+
+            vocabBtn.disabled = true;
+            vocabBox.innerHTML = '';
+
+            vocabProgressContainer.style.display = 'block';
+            vocabProgressText.style.display = 'block';
+            vocabProgressBar.style.width = '0%';
+            vocabProgressText.textContent = '0%';
+
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task: 'extract_vocab', text: text })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        try {
+                            const data = JSON.parse(line);
+
+                            if (data.progress !== undefined) {
+                                vocabProgressBar.style.width = data.progress + '%';
+                                vocabProgressText.textContent = data.status || (data.progress + '%');
+                            }
+
+                            if (data.vocab_data) {
+                                renderVocabData(data.vocab_data);
+                            }
+                        } catch (e) {
+                            console.error('Error parsing JSON chunk', e);
+                        }
+                    }
+                }
+            } catch (err) {
+                vocabBox.innerHTML = `<div style="color: #ef4444;">Error: ${err.message}</div>`;
+            } finally {
+                vocabBtn.disabled = false;
+                setTimeout(() => {
+                    vocabProgressContainer.style.display = 'none';
+                    vocabProgressText.style.display = 'none';
+                }, 2000);
+            }
+        });
+
+        function renderVocabData(data) {
+            vocabBox.innerHTML = '';
+
+            const levels = [
+                { key: 'foundational', title: '基礎詞彙 (Foundational Level 1-2)', color: '#34d399' },
+                { key: 'intermediate', title: '進階詞彙 (Intermediate Level 3-4)', color: '#60a5fa' },
+                { key: 'advanced', title: '高階詞彙 (Advanced Level 5+)', color: '#f472b6' }
+            ];
+
+            levels.forEach(lvl => {
+                const words = data[lvl.key];
+                if (words && words.length > 0) {
+                    const section = document.createElement('div');
+                    section.innerHTML = `<h4 style="color: ${lvl.color}; border-bottom: 1px solid ${lvl.color}; padding-bottom: 5px; margin-bottom: 15px;">${lvl.title}</h4>`;
+
+                    const grid = document.createElement('div');
+                    grid.style.display = 'grid';
+                    grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(280px, 1fr))';
+                    grid.style.gap = '15px';
+
+                    words.forEach(w => {
+                        const card = document.createElement('div');
+                        card.style.background = '#1e293b';
+                        card.style.padding = '15px';
+                        card.style.borderRadius = '8px';
+                        card.style.border = '1px solid #334155';
+
+                        card.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px;">
+                                <div style="display: flex; align-items: baseline; gap: 10px;">
+                                    <span style="font-size: 1.5rem; font-weight: bold; color: white;">${w.word}</span>
+                                    <span style="color: #94a3b8; font-size: 0.9rem;">${w.zhuyin || ''}</span>
+                                </div>
+                                <span style="color: #64748b; font-size: 0.9rem;">${w.pinyin}</span>
+                            </div>
+                            <div style="color: #cbd5e1; margin-bottom: 10px; font-size: 0.95rem;">${w.definition || '(No definition)'}</div>
+                            ${w.example ? `
+                                <div style="background: #0f172a; padding: 10px; border-radius: 6px; font-size: 0.9rem;">
+                                    <div style="color: #fbbf24; margin-bottom: 2px;">${w.example}</div>
+                                    <div style="color: #64748b;">${w.translation || ''}</div>
+                                </div>
+                            ` : ''}
+                        `;
+                        grid.appendChild(card);
+                    });
+
+                    section.appendChild(grid);
+                    section.style.marginBottom = '30px';
+                    vocabBox.appendChild(section);
+                }
+            });
+
+            if (vocabBox.innerHTML === '') {
+                vocabBox.innerHTML = '<div style="text-align: center; color: #94a3b8;">沒有找到符合的單字 (No vocabulary found)</div>';
+            }
+        }
+    </script>
+</body>
+
+</html>
