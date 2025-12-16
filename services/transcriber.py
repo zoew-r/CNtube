@@ -13,10 +13,12 @@ def transcribe_audio(audio_path: str, duration: float = 0):
         audio_path, 
         language="zh",
         beam_size=5,
-        # 【重點】暫時切斷上下文依賴！
+
+        # --- 額外添加的東西 --- 
         condition_on_previous_text=False, 
-        
-        # --- 額外保險措施 ---
+        # 【重點】暫時切斷上下文依賴！
+        no_speech_threshold=0.95,
+        # 雜訊容錯設定0.95
         # 如果模型覺得這段話很爛，原本會直接丟掉，現在我們叫它再試試看
         temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0], 
         compression_ratio_threshold=2.4, # 防止因為聽不懂而開始鬼打牆(重複一樣的字)
