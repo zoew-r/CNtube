@@ -13,8 +13,8 @@ def transcribe_audio(audio_path: str, duration: float = 0):
         audio_path, 
         language="zh",
         beam_size=5,
+        # 【重點】暫時切斷上下文依賴！
         condition_on_previous_text=False, 
-        # 【重點】切斷上下文依賴！
         
         # --- 額外保險措施 ---
         # 如果模型覺得這段話很爛，原本會直接丟掉，現在我們叫它再試試看
