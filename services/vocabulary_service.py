@@ -5,7 +5,7 @@ import random
 import re
 from pypinyin import pinyin, Style
 
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
 
 COCT_DB = {}
 try:
