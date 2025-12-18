@@ -29,6 +29,24 @@ def transcribe_audio(audio_path: str, duration: float = 0):
     for seg in segments:
         text = seg.text.strip()
         start_time = format_time(seg.start)
+
+        # --- 新增：生成注音配對 ---
+        # 1. 取得注音列表 (BOPOMOFO 代表注音符號)
+        # heteronym=False 代表不顯示多音字的所有發音，只取最常用的
+        zhuyin_list = pinyin(text, style=Style.BOPOMOFO)
+        
+        # 2. 將文字與注音配對
+        # 結果會變成像這樣：[{"char": "你", "zy": "ㄋㄧˇ"}, {"char": "好", "zy": "ㄏㄠˇ"}]
+        # zip 用來把兩個列表鎖在一起
+        chars_with_zhuyin = []
+        for char, zy_item in zip(text, zhuyin_list):
+            # zy_item 是一個 list，例如 ['ㄋㄧˇ']，我們取第一個
+            zy = zy_item[0] 
+            # 如果是標點符號，pinyin 會原樣回傳，我們就把注音設為空字串，避免顯示在上方
+            if char == zy: 
+                zy = "" 
+            chars_with_zhuyin.append({"char": char, "zy": zy})
+        # ------------------------
         
         # Format: [MM:SS] Text
         formatted_line = f"[{start_time}] {text}\n"
