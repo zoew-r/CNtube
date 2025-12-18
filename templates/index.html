@@ -227,6 +227,58 @@
             text-align: center;
             display: none;
         }
+
+        /* --- 新增：注音 (Ruby) 樣式 --- */
+        .transcript-line {
+            padding: 8px 10px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            line-height: 2.2;
+            /* 拉高行距，以免注音跟上一行打架 */
+        }
+
+        .transcript-line:hover {
+            background: #f1f5f9;
+        }
+
+        .transcript-line.active {
+            background: #e0f2fe;
+            /* 播放時的高亮顏色 */
+            border-left: 4px solid #3b82f6;
+        }
+
+        .timestamp {
+            color: #94a3b8;
+            font-size: 0.85em;
+            margin-right: 8px;
+            user-select: none;
+        }
+
+        ruby {
+            margin: 0 1px;
+        }
+
+        rt {
+            font-size: 0.5em;
+            /* 注音字體大小 */
+            color: #64748b;
+            /* 注音顏色 (灰色) */
+            font-weight: normal;
+        }
+
+        .subtitle-display ruby {
+            margin: 0 4px;
+            /* 字距拉開一點，比較好讀 */
+        }
+
+        .subtitle-display rt {
+            color: #e2e8f0;
+            /* 亮白色/淺灰色，在深色背景才看得到 */
+            font-size: 0.6em;
+            font-weight: normal;
+            line-height: 1.2;
     </style>
 </head>
 
@@ -322,6 +374,13 @@
         let syncInterval;
         let isPlayerReady = false;
 
+        // --- Helper: 時間格式化 (把秒數轉為 00:00) ---
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
         // --- Tab Switch ---
         function switchTab(btn) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -349,13 +408,59 @@
             else stopSync();
         }
 
+        let currentSegIndex = -1; // 用來避免重複刷新，提升效能
+
         function startSync() {
             stopSync();
             syncInterval = setInterval(() => {
                 if (player && typeof player.getCurrentTime === 'function') {
                     const t = player.getCurrentTime();
-                    const seg = segments.find(s => t >= s.start && t <= s.end);
-                    if (seg) document.getElementById('subtitleBox').innerText = seg.text;
+
+                    // 1. 找出目前的 segment 索引
+                    const index = segments.findIndex(s => t >= s.start && t <= s.end);
+
+                    // 只有當字幕真的換行時，才去更新 DOM (避免每 0.1秒一直重繪)
+                    if (index !== -1 && index !== currentSegIndex) {
+                        currentSegIndex = index;
+                        const seg = segments[index];
+                        const subtitleBox = document.getElementById('subtitleBox');
+
+                        // --- 核心修改：組裝注音 HTML ---
+                        if (seg.tokens && seg.tokens.length > 0) {
+                            let html = "";
+                            seg.tokens.forEach(token => {
+                                if (token.zy) {
+                                    // 有注音
+                                    html += `<ruby>${token.char}<rt>${token.zy}</rt></ruby>`;
+                                } else {
+                                    // 標點符號或無注音
+                                    html += token.char;
+                                }
+                            });
+                            subtitleBox.innerHTML = html; // 用 innerHTML 才能顯示標籤
+                        } else {
+                            // 舊版相容：沒有注音資料時顯示純文字
+                            subtitleBox.innerText = seg.text;
+                        }
+                        // -----------------------------
+                    }
+                    else if (index === -1 && currentSegIndex !== -1) {
+                        // (選用) 如果目前沒有字幕 (空白區段)，是否要清空？
+                        // document.getElementById('subtitleBox').innerText = "...";
+                        // currentSegIndex = -1;
+                    }
+
+                    // 2. 高亮右側逐字稿 (這部分保持不變)
+                    document.querySelectorAll('.transcript-line').forEach(div => {
+                        const start = parseFloat(div.dataset.start);
+                        const end = parseFloat(div.dataset.end);
+                        if (t >= start && t <= end) {
+                            div.classList.add('active');
+                            // div.scrollIntoView({ behavior: "smooth", block: "center" }); // 如果想自動捲動可打開
+                        } else {
+                            div.classList.remove('active');
+                        }
+                    });
                 }
             }, 100);
         }
@@ -410,22 +515,50 @@
                 const reader = resp.body.getReader();
                 const decoder = new TextDecoder();
                 let fullText = "";
-
+                //新增注音讀取 
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
+
                     const chunk = decoder.decode(value, { stream: true });
                     const lines = chunk.split('\n');
+
                     lines.forEach(line => {
-                        if (!line) return;
+                        if (!line.trim()) return;
                         try {
                             const d = JSON.parse(line);
-                            if (d.transcript) fullText = d.transcript;
-                            if (d.segment) segments.push(d.segment);
+
+                            // 更新進度條
                             if (d.progress) progressBar.style.width = d.progress + '%';
-                        } catch (e) { }
+
+                            // --- 關鍵修改：處理新的一行字幕 ---
+                            if (d.segment) {
+                                segments.push(d.segment); // 存入陣列供同步使用
+
+                                // 建立這一行的容器
+                                const lineDiv = document.createElement('div');
+                                lineDiv.className = 'transcript-line';
+                                lineDiv.dataset.start = d.segment.start;
+                                lineDiv.dataset.end = d.segment.end;
+
+                                // 點擊這行字，影片跳轉到該時間
+                                lineDiv.onclick = () => player.seekTo(d.segment.start, true);
+
+                                // --- 純文字顯示 ---
+                                let contentHtml = d.segment.text;
+
+                                // 組合時間戳記 + 字幕內容
+                                lineDiv.innerHTML = `<span class="timestamp">[${formatTime(d.segment.start)}]</span>${contentHtml}`;
+
+                                // 加到畫面上並捲動到底部
+                                box.appendChild(lineDiv);
+                                box.scrollTop = box.scrollHeight;
+                            }
+
+                        } catch (e) {
+                            console.error("JSON Parse Error", e);
+                        }
                     });
-                    box.innerText = fullText;
                 }
 
                 document.getElementById('subtitleBox').innerText = "(Ready to play)";
@@ -439,20 +572,26 @@
 
         // --- Helper Functions (Vocab, Grammar, Simplify) ---
         async function extractVocab() {
-            const text = document.getElementById('transcriptText').innerText;
+            // ✅ 使用 segments 資料源，不管介面長怎樣都能運作
+            if (segments.length === 0) return alert("Please load transcript first.");
+
+            // 把所有句子的 text 串接起來，用換行符號隔開
+            const text = segments.map(s => s.text).join('\n');
+
             const listWrapper = document.getElementById('vocabListWrapper');
             const list = document.getElementById('vocabList');
-
-            if (text.length < 10) return alert("Please load transcript first.");
 
             listWrapper.style.display = "block";
             list.innerHTML = "Analyzing...";
 
+            // 呼叫後端
             const resp = await fetch('/process', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ task: 'extract_vocab', text: text })
             });
+
+            // ... (原本的處理邏輯) ...
             const data = await resp.json();
             list.innerHTML = "";
             data.vocab.forEach(v => {
