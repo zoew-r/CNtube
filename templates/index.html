@@ -374,6 +374,19 @@
         let syncInterval;
         let isPlayerReady = false;
 
+        // --- 新增：互動偵測變數 ---
+        let isUserInteracting = false;
+        const transcriptBox = document.getElementById('transcriptText');
+
+        // 當滑鼠移入或手指觸碰時，暫停自動捲動
+        transcriptBox.addEventListener('mouseenter', () => isUserInteracting = true);
+        transcriptBox.addEventListener('mouseleave', () => isUserInteracting = false);
+        transcriptBox.addEventListener('touchstart', () => isUserInteracting = true);
+        transcriptBox.addEventListener('touchend', () => {
+            // 手機版手指離開後，延遲 2 秒再恢復自動捲動，體驗比較好
+            setTimeout(() => isUserInteracting = false, 2000);
+        });
+
         // --- Helper: 時間格式化 (把秒數轉為 00:00) ---
         function formatTime(seconds) {
             const m = Math.floor(seconds / 60);
@@ -419,44 +432,43 @@
                     // 1. 找出目前的 segment 索引
                     const index = segments.findIndex(s => t >= s.start && t <= s.end);
 
-                    // 只有當字幕真的換行時，才去更新 DOM (避免每 0.1秒一直重繪)
+                    // 只有當字幕「真的換行」時才執行更新
                     if (index !== -1 && index !== currentSegIndex) {
                         currentSegIndex = index;
                         const seg = segments[index];
-                        const subtitleBox = document.getElementById('subtitleBox');
 
-                        // --- 核心修改：組裝注音 HTML ---
+                        // A. 更新下方字幕條 (Subtitle Box)
+                        const subtitleBox = document.getElementById('subtitleBox');
                         if (seg.tokens && seg.tokens.length > 0) {
                             let html = "";
                             seg.tokens.forEach(token => {
-                                if (token.zy) {
-                                    // 有注音
-                                    html += `<ruby>${token.char}<rt>${token.zy}</rt></ruby>`;
-                                } else {
-                                    // 標點符號或無注音
-                                    html += token.char;
-                                }
+                                html += token.zy ? `<ruby>${token.char}<rt>${token.zy}</rt></ruby>` : token.char;
                             });
-                            subtitleBox.innerHTML = html; // 用 innerHTML 才能顯示標籤
+                            subtitleBox.innerHTML = html;
                         } else {
-                            // 舊版相容：沒有注音資料時顯示純文字
                             subtitleBox.innerText = seg.text;
                         }
-                        // -----------------------------
-                    }
-                    else if (index === -1 && currentSegIndex !== -1) {
-                        // (選用) 如果目前沒有字幕 (空白區段)，是否要清空？
-                        // document.getElementById('subtitleBox').innerText = "...";
-                        // currentSegIndex = -1;
                     }
 
-                    // 2. 高亮右側逐字稿 (這部分保持不變)
+                    // 2. 高亮右側逐字稿 & 自動捲動
                     document.querySelectorAll('.transcript-line').forEach(div => {
                         const start = parseFloat(div.dataset.start);
                         const end = parseFloat(div.dataset.end);
+
                         if (t >= start && t <= end) {
-                            div.classList.add('active');
-                            // div.scrollIntoView({ behavior: "smooth", block: "center" }); // 如果想自動捲動可打開
+                            if (!div.classList.contains('active')) {
+                                div.classList.add('active'); // 變色高亮
+
+                                // --- 核心修改：自動捲動到底部 ---
+                                // 只有當使用者「沒有」在操作時，才自動捲動
+                                if (!isUserInteracting) {
+                                    div.scrollIntoView({
+                                        behavior: "smooth",
+                                        block: "end",    // "end" 代表對齊視窗底部
+                                        inline: "nearest"
+                                    });
+                                }
+                            }
                         } else {
                             div.classList.remove('active');
                         }
