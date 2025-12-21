@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNtube - AI Learning</title>
+    <style>
+        /* --- 基礎設定 --- */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* --- 上半部：影片與逐字稿 --- */
+        .top-section {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            /* 讓手機版自動換行 */
+        }
+
+        .video-column {
+            flex: 1.5;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 300px;
+        }
+
+        .video-box {
+            position: relative;
+            padding-bottom: 56.25%;
+            /* 16:9 比例 */
+            height: 0;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .video-box iframe,
+        .video-box div {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .subtitle-display {
+            background: #1e293b;
+            color: #fbbf24;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            min-height: 24px;
+        }
+
+        .transcript-column {
+            flex: 1;
+            background: #fff;
+            border-radius: 12px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            height: 550px;
+            min-width: 300px;
+        }
+
+        /* --- 下半部：工具區 --- */
+        .tools-section {
+            background: #fff;
+            border-radius: 12px;
+            border: 1px solid #ddd;
+            overflow: hidden;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-weight: bold;
+            color: #666;
+            font-size: 1rem;
+        }
+
+        .tab-btn:hover {
+            background: #e9ecef;
+        }
+
+        .tab-btn.active {
+            background: #fff;
+            color: #000;
+            border-top: 3px solid #3b82f6;
+        }
+
+        /* 個別 Tab 顏色 */
+        .tab-btn[data-target="vocab-panel"].active {
+            border-top-color: #10b981;
+            color: #10b981;
+        }
+
+        .tab-btn[data-target="grammar-panel"].active {
+            border-top-color: #3b82f6;
+            color: #3b82f6;
+        }
+
+        .tab-btn[data-target="simplify-panel"].active {
+            border-top-color: #f59e0b;
+            color: #f59e0b;
+        }
+
+        .panel-content {
+            padding: 20px;
+            display: none;
+        }
+
+        .panel-content.active {
+            display: block;
+        }
+
+        /* --- 元件樣式 --- */
+        .input-area {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        input[type="text"],
+        textarea {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        button.action-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            color: white;
+            font-weight: bold;
+        }
+
+        .result-box {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 6px;
+            min-height: 100px;
+            white-space: pre-wrap;
+        }
+
+        /* 進度條 */
+        .progress-container {
+            width: 100%;
+            background: #eee;
+            height: 5px;
+            margin-bottom: 10px;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #3b82f6;
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        /* 單字標籤 */
+        .vocab-tag {
+            display: inline-block;
+            padding: 3px 8px;
+            margin: 3px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        /* 單字列表區 */
+        #vocabListWrapper {
+            display: none;
+            background: #f0f9ff;
+            padding: 10px;
+            margin-bottom: 10px;
+            position: relative;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: red;
+            color: white;
+            border: none;
+            width: 20px;
+            cursor: pointer;
+        }
+
+        /* Loading */
+        .loading {
+            color: #888;
+            text-align: center;
+            display: none;
+        }
+
+        /* --- 新增：注音 (Ruby) 樣式 --- */
+        .transcript-line {
+            padding: 8px 10px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            line-height: 2.2;
+            /* 拉高行距，以免注音跟上一行打架 */
+        }
+
+        .transcript-line:hover {
+            background: #f1f5f9;
+        }
+
+        .transcript-line.active {
+            background: #e0f2fe;
+            /* 播放時的高亮顏色 */
+            border-left: 4px solid #3b82f6;
+        }
+
+        .timestamp {
+            color: #94a3b8;
+            font-size: 0.85em;
+            margin-right: 8px;
+            user-select: none;
+        }
+
+        ruby {
+            margin: 0 1px;
+        }
+
+        rt {
+            font-size: 0.5em;
+            /* 注音字體大小 */
+            color: #64748b;
+            /* 注音顏色 (灰色) */
+            font-weight: normal;
+        }
+
+        .subtitle-display ruby {
+            margin: 0 4px;
+            /* 字距拉開一點，比較好讀 */
+        }
+
+        .subtitle-display rt {
+            color: #e2e8f0;
+            /* 亮白色/淺灰色，在深色背景才看得到 */
+            font-size: 0.6em;
+            font-weight: normal;
+            line-height: 1.2;
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <header>
+            <h2 style="margin:0;">CNtube <small style="color:#666; font-weight:normal;">AI Language Learning</small>
+            </h2>
+        </header>
+
+        <div class="top-section">
+            <div class="video-column">
+                <div class="video-box">
+                    <div id="videoPlayer"></div>
+                </div>
+                <div id="subtitleBox" class="subtitle-display">(Subtitles will appear here)</div>
+            </div>
+
+            <div class="transcript-column">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h3 style="margin:0;">Transcript</h3>
+                    <button class="action-btn" style="background:#8b5cf6; font-size:0.8rem;"
+                        onclick="extractVocab()">Extract Vocab</button>
+                </div>
+
+                <div class="input-area">
+                    <input type="text" id="urlInput" placeholder="Paste YouTube Link...">
+                    <button class="action-btn" style="background:#333;" onclick="startTranscribe()">Load</button>
+                </div>
+
+                <div id="progressContainer" class="progress-container">
+                    <div id="progressBar" class="progress-bar"></div>
+                </div>
+
+                <div id="vocabListWrapper">
+                    <button class="close-btn" onclick="closeVocabList()">×</button>
+                    <div id="vocabList"></div>
+                </div>
+
+                <div id="transcriptText" style="flex:1; overflow-y:auto; line-height:1.6;">(Please load a video
+                    first...)</div>
+            </div>
+        </div>
+
+        <div class="tools-section">
+            <div class="tabs">
+                <button class="tab-btn active" data-target="vocab-panel" onclick="switchTab(this)">📖
+                    Dictionary</button>
+                <button class="tab-btn" data-target="grammar-panel" onclick="switchTab(this)">🔍 Grammar</button>
+                <button class="tab-btn" data-target="simplify-panel" onclick="switchTab(this)">✨ Simplify</button>
+            </div>
+
+            <div id="vocab-panel" class="panel-content active">
+                <div class="input-area">
+                    <input type="text" id="vocabInput" placeholder="Word lookup...">
+                    <button class="action-btn" style="background:#10b981;" onclick="lookupWordInput()">Search</button>
+                </div>
+                <div id="vocabResult" class="result-box">Results will appear here.</div>
+            </div>
+
+            <div id="grammar-panel" class="panel-content">
+                <div class="input-area">
+                    <input type="text" id="grammarInput" placeholder="Sentence analysis...">
+                    <select id="levelSelect" style="margin-right:10px; padding:5px;">
+                        <option value="1">Level 1</option>
+                        <option value="2">Level 2</option>
+                        <option value="3">Level 3</option>
+                        <option value="4">Level 4</option>
+                        <option value="5">Level 5</option>
+                    </select>
+                    <button class="action-btn" style="background:#3b82f6;" onclick="analyzeGrammar()">Analyze</button>
+                </div>
+                <div id="grammarResult" class="result-box">Waiting for input...</div>
+            </div>
+
+            <div id="simplify-panel" class="panel-content">
+                <div class="input-area">
+                    <select id="simplifyLevelSelect"
+                        style="padding:10px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer;">
+                        <option value="1">Level 1 (Novice)</option>
+                        <option value="2" selected>Level 2 (Beginner)</option>
+                        <option value="3">Level 3 (Intermediate)</option>
+                        <option value="4">Level 4 (Advanced)</option>
+                        <option value="5">Level 5 (Superior)</option>
+                    </select>
+                    <textarea id="simplifyInput" rows="2" placeholder="Paste a difficult sentence here..."
+                        style="flex:2;"></textarea>
+                    <button class="action-btn" style="background:#f59e0b;" onclick="simplifyText()">Simplify</button>
+                </div>
+                <div id="simplifyResult" class="result-box">Simplified result will appear here...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+        console.log("CNtube App Loaded");
+
+        let player;
+        let segments = [];
+        let syncInterval;
+        let isPlayerReady = false;
+
+        // --- 新增：互動偵測變數 ---
+        let isUserInteracting = false;
+        const transcriptBox = document.getElementById('transcriptText');
+
+        // 當滑鼠移入或手指觸碰時，暫停自動捲動
+        transcriptBox.addEventListener('mouseenter', () => isUserInteracting = true);
+        transcriptBox.addEventListener('mouseleave', () => isUserInteracting = false);
+        transcriptBox.addEventListener('touchstart', () => isUserInteracting = true);
+        transcriptBox.addEventListener('touchend', () => {
+            // 手機版手指離開後，延遲 2 秒再恢復自動捲動，體驗比較好
+            setTimeout(() => isUserInteracting = false, 2000);
+        });
+
+        // --- Helper: 時間格式化 (把秒數轉為 00:00) ---
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        // --- Tab Switch ---
+        function switchTab(btn) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.panel-content').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.target).classList.add('active');
+        }
+
+        // --- YouTube API ---
+        function onYouTubeIframeAPIReady() {
+            console.log("YouTube API Ready");
+            player = new YT.Player('videoPlayer', {
+                height: '100%',
+                width: '100%',
+                videoId: '',
+                events: {
+                    'onReady': () => { isPlayerReady = true; console.log("Player Ready"); },
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+
+        function onPlayerStateChange(event) {
+            if (event.data == YT.PlayerState.PLAYING) startSync();
+            else stopSync();
+        }
+
+        let currentSegIndex = -1; // 用來避免重複刷新，提升效能
+
+        function startSync() {
+            stopSync();
+            syncInterval = setInterval(() => {
+                if (player && typeof player.getCurrentTime === 'function') {
+                    const t = player.getCurrentTime();
+
+                    // 1. 找出目前的 segment 索引
+                    const index = segments.findIndex(s => t >= s.start && t <= s.end);
+
+                    // 只有當字幕真的「換行」時，才更新 DOM (提升效能)
+                    if (index !== -1 && index !== currentSegIndex) {
+                        currentSegIndex = index;
+                        const seg = segments[index];
+                        const subtitleBox = document.getElementById('subtitleBox');
+
+                        // --- 核心修改：檢查有沒有注音資料 (tokens) ---
+                        if (seg.tokens && seg.tokens.length > 0) {
+                            let html = "";
+                            seg.tokens.forEach(token => {
+                                if (token.zy) {
+                                    // 有注音：用 Ruby 標籤包起來
+                                    html += `<ruby>${token.char}<rt>${token.zy}</rt></ruby>`;
+                                } else {
+                                    // 沒注音 (如標點)：直接顯示
+                                    html += token.char;
+                                }
+                            });
+                            subtitleBox.innerHTML = html; // 注意：要用 innerHTML
+                        } else {
+                            // 沒資料時的備案：顯示純文字
+                            subtitleBox.innerText = seg.text;
+                        }
+                        // ------------------------------------------
+                    }
+
+                    // 2. 高亮右側逐字稿 & 自動捲動 (這部分您原本的程式碼已有，保持原樣即可)
+                    document.querySelectorAll('.transcript-line').forEach(div => {
+                        const start = parseFloat(div.dataset.start);
+                        const end = parseFloat(div.dataset.end);
+                        if (t >= start && t <= end) {
+                            if (!div.classList.contains('active')) {
+                                div.classList.add('active');
+                                if (!isUserInteracting) {
+                                    div.scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
+                                }
+                            }
+                        } else {
+                            div.classList.remove('active');
+                        }
+                    });
+                }
+            }, 100);
+        }
+
+        function stopSync() {
+            clearInterval(syncInterval);
+        }
+
+        // --- Main Logic ---
+        function getVideoID(url) {
+            try {
+                if (url.includes('v=')) return url.split('v=')[1].split('&')[0];
+                if (url.includes('youtu.be/')) return url.split('youtu.be/')[1].split('?')[0];
+            } catch (e) { }
+            return null;
+        }
+
+        async function startTranscribe() {
+            const url = document.getElementById('urlInput').value;
+            const box = document.getElementById('transcriptText');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+
+            if (!url) return alert("Please enter a URL");
+
+            // UI Reset
+            segments = [];
+            box.innerHTML = "";
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+
+            // Video Load (Safe Mode)
+            const vidId = getVideoID(url);
+            if (vidId) {
+                if (isPlayerReady && player) {
+                    player.loadVideoById(vidId);
+                } else {
+                    console.log("Waiting for player...");
+                    setTimeout(() => { if (player) player.loadVideoById(vidId); }, 1000);
+                }
+            } else {
+                return alert("Invalid YouTube URL");
+            }
+
+            try {
+                const resp = await fetch('/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task: 'transcribe', url: url })
+                });
+
+                const reader = resp.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = "";
+                //新增注音讀取 
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+
+                    lines.forEach(line => {
+                        if (!line.trim()) return;
+                        try {
+                            const d = JSON.parse(line);
+
+                            // 更新進度條
+                            if (d.progress) progressBar.style.width = d.progress + '%';
+
+                            // --- 關鍵修改：處理新的一行字幕 ---
+                            if (d.segment) {
+                                segments.push(d.segment); // 存入陣列供同步使用
+
+                                // 建立這一行的容器
+                                const lineDiv = document.createElement('div');
+                                lineDiv.className = 'transcript-line';
+                                lineDiv.dataset.start = d.segment.start;
+                                lineDiv.dataset.end = d.segment.end;
+
+                                // 點擊這行字，影片跳轉到該時間
+                                lineDiv.onclick = () => player.seekTo(d.segment.start, true);
+
+                                // --- 純文字顯示 ---
+                                let contentHtml = d.segment.text;
+
+                                // 組合時間戳記 + 字幕內容
+                                lineDiv.innerHTML = `<span class="timestamp">[${formatTime(d.segment.start)}]</span>${contentHtml}`;
+
+                                // 加到畫面上並捲動到底部
+                                box.appendChild(lineDiv);
+                                box.scrollTop = box.scrollHeight;
+                            }
+
+                        } catch (e) {
+                            console.error("JSON Parse Error", e);
+                        }
+                    });
+                }
+
+                document.getElementById('subtitleBox').innerText = "(Ready to play)";
+                setTimeout(() => { progressContainer.style.display = 'none'; }, 1500);
+
+            } catch (e) {
+                alert("Error: " + e);
+                progressContainer.style.display = 'none';
+            }
+        }
+
+        // --- Helper Functions (Vocab, Grammar, Simplify) ---
+        async function extractVocab() {
+            // ✅ 使用 segments 資料源，不管介面長怎樣都能運作
+            if (segments.length === 0) return alert("Please load transcript first.");
+
+            // 把所有句子的 text 串接起來，用換行符號隔開
+            const text = segments.map(s => s.text).join('\n');
+
+            const listWrapper = document.getElementById('vocabListWrapper');
+            const list = document.getElementById('vocabList');
+
+            listWrapper.style.display = "block";
+            list.innerHTML = "Analyzing...";
+
+            // 呼叫後端
+            const resp = await fetch('/process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ task: 'extract_vocab', text: text })
+            });
+
+            // ... (原本的處理邏輯) ...
+            const data = await resp.json();
+            list.innerHTML = "";
+            data.vocab.forEach(v => {
+                let color = v.level >= 4 ? '#ef4444' : (v.level == 3 ? '#f59e0b' : '#10b981');
+                let bg = v.level >= 4 ? '#fee2e2' : (v.level == 3 ? '#fef3c7' : '#d1fae5');
+                list.innerHTML += `<span class="vocab-tag" style="color:${color}; background:${bg}" onclick="lookupWord('${v.word}')">${v.word}</span>`;
+            });
+        }
+
+        function closeVocabList() { document.getElementById('vocabListWrapper').style.display = "none"; }
+
+        async function lookupWordInput() {
+            const word = document.getElementById('vocabInput').value;
+            if (word) lookupWord(word);
+        }
+
+        async function lookupWord(word) {
+            switchTab(document.querySelector('.tab-btn[data-target="vocab-panel"]'));
+            document.getElementById('vocabInput').value = word;
+            const box = document.getElementById('vocabResult');
+            box.innerHTML = "Loading...";
+
+            const resp = await fetch('/process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ task: 'lookup', word: word })
+            });
+            const d = await resp.json();
+
+            if (d.error) {
+                box.innerHTML = `Error: ${d.error}`;
+                return;
+            }
+
+            let synonymHtml = '';
+            if (d.simpler_synonym) synonymHtml = `<div style="margin-top:10px; background:#e6fffa; padding:10px; color:#047857;">💡 Easier: ${d.simpler_synonym}</div>`;
+
+            box.innerHTML = `
+            <div style="background:white; padding:15px; border-radius:8px;">
+                <h2>${d.word} <small style="font-size:0.5em; background:#eee; padding:3px 8px; border-radius:10px;">${d.level}</small></h2>
+                <p>🗣️ ${d.zhuyin} | ${d.pinyin}</p>
+                <p><strong>${d.translation}</strong></p>
+                <p>${d.definition_ch}</p>
+                <p style="color:#666">${d.definition_en}</p>
+                ${synonymHtml}
+                <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
+                <p><strong>Example:</strong> ${d.example}</p>
+                <p style="color:#666;">${d.example_en}</p>
+            </div>
+        `;
+        }
+
+        async function analyzeGrammar() {
+            const text = document.getElementById('grammarInput').value;
+            const level = document.getElementById('levelSelect').value;
+            const box = document.getElementById('grammarResult');
+
+            if (!text) return alert("Please enter a sentence");
+
+            box.innerHTML = "Analyzing grammar structure... <span class='loading' style='display:inline-block'>🧠</span>";
+
+            try {
+                const resp = await fetch('/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task: 'analyze', text: text, user_level: level })
+                });
+
+                const reader = resp.body.getReader();
+                const decoder = new TextDecoder();
+                box.innerHTML = ""; // 清空載入訊息
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    // 1. 解碼資料
+                    const chunk = decoder.decode(value, { stream: true });
+
+                    // 2. 切割每一行 (因為後端是一行一行傳 JSON 的)
+                    const lines = chunk.split('\n');
+
+                    lines.forEach(line => {
+                        if (!line.trim()) return; // 跳過空行
+                        try {
+                            // 3. 嘗試把亂碼 (JSON) 轉成物件
+                            const d = JSON.parse(line);
+
+                            // 4. 只取出我們要的內容 (grammar_analysis)
+                            if (d.analysis && d.analysis.grammar_analysis) {
+                                // 將換行符號 \n 轉成網頁用的 <br>，讓排版變漂亮
+                                box.innerHTML = d.analysis.grammar_analysis.replace(/\n/g, '<br>');
+                            }
+                        } catch (e) {
+                            // 如果這行不是 JSON，暫時忽略
+                            console.log("Parsing error for line:", line);
+                        }
+                    });
+                }
+            } catch (e) {
+                box.innerHTML = "Error analyzing: " + e;
+            }
+        }
+
+        async function simplifyText() {
+            const text = document.getElementById('simplifyInput').value;
+            // 取得選單的值
+            const level = document.getElementById('simplifyLevelSelect').value;
+            const box = document.getElementById('simplifyResult');
+
+            if (!text) return alert("Please enter a sentence");
+
+            box.innerHTML = "Analyzing & Simplifying... <span class='loading' style='display:inline-block'>⏳</span>";
+
+            try {
+                const resp = await fetch('/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    // 將 text 和 level 一起送出
+                    body: JSON.stringify({ task: 'simplify', text: text, level: level })
+                });
+                const d = await resp.json();
+
+                if (d.error) {
+                    box.innerHTML = "Error: " + d.error;
+                    return;
+                }
+
+                // 顯示偵測到的難詞 (如果有)
+                let hardWordsHtml = "";
+                if (d.detected_hard_words && d.detected_hard_words.length > 0) {
+                    hardWordsHtml = `<div style="margin-bottom:10px; color:#ef4444; font-size:0.9em;">
+                        <strong>⚠️ Detected Difficult Words (Lv > ${level}):</strong> ${d.detected_hard_words.join(", ")}
+                    </div>`;
+                } else {
+                    hardWordsHtml = `<div style="margin-bottom:10px; color:#10b981; font-size:0.9em;">
+                        <strong>✅ No difficult words detected for this level.</strong>
+                    </div>`;
+                }
+
+                box.innerHTML = `
+                <div style="background:white; padding:15px; border-radius:8px;">
+                    ${hardWordsHtml}
+                    <p style="color:#888; font-size:0.9em;">Original: ${d.original}</p>
+                    <hr style="border:0; border-top:1px solid #eee; margin:10px 0;">
+                    <p style="font-size:1.3em; font-weight:bold; color:#d97706; margin:10px 0;">${d.simplified}</p>
+                    <p style="color:#333;">${d.english_meaning}</p>
+                </div>
+                `;
+            } catch (e) {
+                box.innerHTML = "Error: " + e;
+            }
+        }
+    </script>
+
+</body>
+
+</html>
