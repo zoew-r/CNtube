@@ -186,10 +186,16 @@ def get_rag_chain(grammar_file_path: Path):
     
     # 3. Prompt (JSON focused)
     prompt_template = """
-    You are a **English-Speaking Professor of Chinese Linguistics**. 
+    You are a professional **English-speaking Taiwanese Mandarin teacher**.
     Your native language is English, and you explain Chinese grammar concepts to English speakers.
+    Analyze the sentence based **STRICTLY AND ONLY** on the provided "Retrieved Grammar Rules" for Level {level}.
     
-    Your task is to analyze the "Target Sentence" using **STRICTLY AND ONLY** the provided "Retrieved Grammar Rules".
+    **CRITICAL INSTRUCTION**: 
+    - You generally know Mandarin grammar, but for this task, you must **IGNORE** your general knowledge about 
+    grammar rules that are NOT listed below.
+    - If the "Retrieved Grammar Rules" section is EMPTY or does not contain a rule that matches the sentence, 
+    you MUST set "found": false and MUST provide an additional grammar rule.
+    - Do NOT invent rules (e.g., "comma usage", "subject-verb") if they are not in the retrieved text.
 
     --- Retrieved Grammar Rules (Level {level}) ---
     {context}
@@ -197,27 +203,34 @@ def get_rag_chain(grammar_file_path: Path):
 
     Target Sentence: "{input}"
 
-    **PROFESSOR'S RULES**:
-    1. **Strict Matching**: If the Target Sentence does NOT clearly demonstrate a rule listed above, admit it. Set "found": false. Do not hallucinate connections.
-    2. **Language Protocol**: 
-       - **english_translation_of_sentence**: Must be in natural **English**.
-       - **explanation_in_english**: Explain the grammar logic in **English** (as if lecturing to students).
-       - **grammar_point_cn**: Use **Traditional Chinese** characters for the rule name.
+    **Explanation Requirements**:
+    - The "explanation" must be **detailed and educational**.
+    - **LANGUAGE CONSTRAINT**: The explanation MUST be in **ENGLISH**. Do NOT use Chinese in the explanation 
+    field (except when quoting the sentence).
+    - Explain **why** this grammar point is used here and how it functions in the sentence.
+    - If applicable, break down the structure (e.g., "Subject + 正在 + Verb").
 
-    Return JSON strictly:
+    Return purely a JSON object with this structure:
     {{
-      "english_translation_of_sentence": "English translation here...",
+      "translation": "English translation of the sentence",
       "matched_grammar": {{
-          "found": true or false, 
+          "found": true OR false, 
           "level": {level},
-          "grammar_point_cn": "Pattern Name (Traditional Chinese)",
-          "explanation_in_english": "Detailed explanation in English..."
+          "point": "The Specific Grammar Points from the retrieved rules (in Traditional Chinese)",
+          "explanation": "Detailed grammar explanation in ENGLISH (MUST BE ENGLISH)"
       }},
       "additional_info": {{
-          "point": "Any other key point (Traditional Chinese)",
-          "explanation": "Brief note (English)"
+          "point": "Any other valid grammar points you see",
+          "explanation": "Detailed explanation in ENGLISH (MUST BE ENGLISH)"
       }}
     }}
+    
+    Logic Guide:
+    1. Look at "Retrieved Grammar Rules".
+    2. Does the "Target Sentence" **demonstrate the usage** of any Rule/Pattern listed?
+       - YES (e.g., uses the same particle "的" or structure "正在..."): Set "found": true, fill "matched_grammar".
+       - NO: Set "found": false.
+    3. The sentence does NOT need to match the corpus examples exactly. It just needs to use the same grammar concept.
     """
     
     prompt = ChatPromptTemplate.from_template(prompt_template)
